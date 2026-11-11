@@ -2087,6 +2087,78 @@ try{
     }catch(err){}
   }, true);
 }catch(e){}
+// FIX 3 - Autoplay bei erster Interaktion wieder an (Zweit-Sicherung zu React-F0).
+// React-F0 kann haengen (z.B. erste Interaktion war Video, oder Play schlug fehl).
+// Diese Sicherung klickt bei erster echter Interaktion einmal den Play-Button.
+// Nicht bei: Video-Controls, Audio-Controls, Video laeuft, Audio spielt schon, Autoplay schon einmal gelaufen.
+// Space wird hier bewusst ausgelassen: Space spielt Audio schon via React-L1, ein extra Play-Klick wuerde wieder pausieren.
+var kAutoplayDone=false;
+var kAutoplayLastTry=0;
+function kTryAutoplay(){
+  try{
+    if(kAutoplayDone) return;
+    if(window._kismet_firstInteractionStarted){ kAutoplayDone=true; return; }
+    if(window._kismet_videoPlaying) return;
+    if(playing) return;
+    var kAud=null;
+    try{ kAud=document.getElementById('mainAudio'); if(!kAud){ kAud=document.querySelector('audio'); } }catch(e1){}
+    if(kAud && !kAud.paused){ kAutoplayDone=true; return; }
+    var kPlayBtn=null;
+    try{ kPlayBtn=document.querySelector('button[aria-label="Play"]'); }catch(e1){}
+    if(!kPlayBtn) return;
+    var kNow=Date.now();
+    if(kNow-kAutoplayLastTry<800) return;
+    kAutoplayLastTry=kNow;
+    try{ kPlayBtn.click(); }catch(e1){}
+    setTimeout(function(){
+      try{
+        if(window._kismet_videoPlaying){ kAutoplayLastTry=0; return; }
+        if(playing){ kAutoplayLastTry=0; return; }
+        var kA2=document.getElementById('mainAudio'); if(!kA2){ kA2=document.querySelector('audio'); }
+        if(kA2 && !kA2.paused){ kAutoplayDone=true; }
+        else { kAutoplayLastTry=0; }
+      }catch(e2){ kAutoplayLastTry=0; }
+    },900);
+  }catch(e1){}
+}
+function kAutoplayHandler(e){
+  try{
+    if(kAutoplayDone) return;
+    if(window._kismet_firstInteractionStarted){ kAutoplayDone=true; return; }
+    if(window._kismet_videoPlaying) return;
+    if(playing) return;
+    if(e && e.type==='keydown' && e.code==='Space') return;
+    var kT=e && e.target;
+    if(kT && kT.closest){
+      if(kT.closest('#kvp-thumb,#kvp-player')) return;
+      if(kT.closest('#songs button,#songs input,#songs a')) return;
+      if(kT.closest('button[aria-label="Play"],button[aria-label="Pause"]')) return;
+      if(kT.closest('input,textarea,select')) return;
+      if(kT.isContentEditable) return;
+    }
+    if(e && e.type==='keydown'){
+      var kK=e.target;
+      if(kK && (kK.tagName==='INPUT' || kK.tagName==='TEXTAREA' || kK.tagName==='SELECT')) return;
+    }
+    kTryAutoplay();
+  }catch(e1){}
+}
+try{
+  document.addEventListener('play', function(e){
+    try{
+      if(e.target && e.target.tagName==='AUDIO'){
+        if(window._kismet_videoPlaying) return;
+        if(playing) return;
+        kAutoplayDone=true;
+      }
+    }catch(err){}
+  }, true);
+}catch(e){}
+try{
+  ['pointerdown','keydown','touchstart','wheel','click','mousedown','touchend'].forEach(function(kEv){
+    document.addEventListener(kEv, kAutoplayHandler, {passive:true, capture:true});
+  });
+}catch(e){}
 })();
 <\/script>
 
